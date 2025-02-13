@@ -7,9 +7,12 @@ import matplotlib.pyplot as plt
 from sklearn.preprocessing import MinMaxScaler
 from datetime import datetime, timedelta
 
+# Set global plotting style
+plt.style.use('dark_background')
+
 @st.cache_resource
 def load_model_cached():
-    return load_model(r'C:\Users\HP\Desktop\Stock-Prediction-main\stock_prediction_model.keras')
+    return load_model('Stock-Prediction-main/stock_prediction_model.keras')
 
 @st.cache_data
 def fetch_stock_data(stock, start, end):
@@ -30,6 +33,63 @@ def create_sequences(data, seq_length):
         x.append(data[i-seq_length:i])
         y.append(data[i, 0])
     return np.array(x), np.array(y)
+
+def setup_plot_style(fig, ax):
+    """Helper function to set up consistent plot styling"""
+    fig.patch.set_alpha(0)
+    ax.patch.set_alpha(0)
+    ax.grid(True, linestyle='--', alpha=0.2)
+    ax.spines['top'].set_visible(False)
+    ax.spines['right'].set_visible(False)
+    ax.spines['left'].set_color('#666666')
+    ax.spines['bottom'].set_color('#666666')
+    ax.tick_params(colors='#666666')
+    ax.yaxis.label.set_color('#666666')
+    ax.xaxis.label.set_color('#666666')
+    plt.xticks(rotation=45)
+
+def plot_moving_averages(data):
+    st.subheader('Price vs Moving Averages')
+    fig, ax = plt.subplots(figsize=(12, 6))
+    
+    # Plot with enhanced styling
+    ax.plot(data.index, data.Close, label='Close Price', color='#00ff88', linewidth=2)
+    ax.plot(data.index, data.Close.rolling(50).mean(), label='MA50', color='#ff9900', linewidth=1.5)
+    ax.plot(data.index, data.Close.rolling(100).mean(), label='MA100', color='#00ffff', linewidth=1.5)
+    ax.plot(data.index, data.Close.rolling(200).mean(), label='MA200', color='#ff3366', linewidth=1.5)
+    
+    setup_plot_style(fig, ax)
+    ax.set_xlabel('Date')
+    ax.set_ylabel('Price')
+    ax.legend(facecolor='none', edgecolor='none')
+    st.pyplot(fig)
+
+def plot_volume_traded(data):
+    st.subheader('Volume Traded')
+    fig, ax = plt.subplots(figsize=(12, 4))
+    
+    # Create gradient colors for volume bars based on price change
+    price_change = data.Close.pct_change()
+    colors = ['#00ff88' if x >= 0 else '#ff3366' for x in price_change]
+    
+    ax.bar(data.index, data['Volume'], color=colors, alpha=0.7)
+    setup_plot_style(fig, ax)
+    ax.set_xlabel('Date')
+    ax.set_ylabel('Volume')
+    st.pyplot(fig)
+
+def plot_predictions(data_test, y, predict):
+    st.subheader('Original Price vs Predicted Price')
+    fig, ax = plt.subplots(figsize=(12, 6))
+    
+    ax.plot(data_test.index[100:], y, color='#00ff88', label='Original Price', linewidth=2)
+    ax.plot(data_test.index[100:], predict, color='#ff3366', label='Predicted Price', linewidth=2)
+    
+    setup_plot_style(fig, ax)
+    ax.set_xlabel('Date')
+    ax.set_ylabel('Price')
+    ax.legend(facecolor='none', edgecolor='none')
+    st.pyplot(fig)
 
 def show_stock_page():
     st.title(f'Stock Analysis: {st.session_state.stock}')
@@ -82,43 +142,9 @@ def show_stock_page():
     # Model performance metrics
     display_model_performance(y, predict.flatten())
 
-def plot_moving_averages(data):
-    st.subheader('Price vs Moving Averages')
-    fig, ax = plt.subplots(figsize=(12, 6))
-    ax.plot(data.index, data.Close, label='Close Price')
-    ax.plot(data.index, data.Close.rolling(50).mean(), label='MA50')
-    ax.plot(data.index, data.Close.rolling(100).mean(), label='MA100')
-    ax.plot(data.index, data.Close.rolling(200).mean(), label='MA200')
-    ax.set_xlabel('Date')
-    ax.set_ylabel('Price')
-    ax.legend()
-    st.pyplot(fig)
-
-def plot_volume_traded(data):
-    st.subheader('Volume Traded')
-    fig, ax = plt.subplots(figsize=(10, 4))
-    ax.bar(data.index, data['Volume'], color='blue')
-    ax.set_xlabel('Date')
-    ax.set_ylabel('Volume')
-    ax.set_title('Volume Traded')
-    plt.xticks(rotation=45)
-    st.pyplot(fig)
-
-def plot_predictions(data_test, y, predict):
-    st.subheader('Original Price vs Predicted Price')
-    fig, ax = plt.subplots(figsize=(12, 6))
-    ax.plot(data_test.index[100:], y, 'g', label='Original Price')
-    ax.plot(data_test.index[100:], predict, 'r', label='Predicted Price')
-    ax.set_xlabel('Date')
-    ax.set_ylabel('Price')
-    ax.legend()
-    st.pyplot(fig)
-
 def compare_5_day_prediction(data, model, scaler):
-    
     st.subheader('5-Day Prediction Comparison')
     
-    # Ensure we have at least 100 days of data
     if len(data) < 100:
         st.warning("Not enough historical data for 5-day prediction comparison.")
         return
@@ -129,7 +155,6 @@ def compare_5_day_prediction(data, model, scaler):
     predicted_prices = []
     
     for i in range(5):
-        # Use the 100 days prior to each of the last 5 days for prediction
         last_100_days = data['Close'].iloc[-(105-i):-(5-i)].values.reshape(-1, 1)
         last_100_days_scaled = scaler.transform(last_100_days)
         X_test = np.array([last_100_days_scaled])
@@ -154,12 +179,10 @@ def compare_5_day_prediction(data, model, scaler):
         'Percentage Error': '{:.2f}%'
     }))
     
-    # Calculate and display average error metrics
     mae = np.mean(np.abs(comparison_df['Prediction Error']))
     mape = np.mean(np.abs(comparison_df['Percentage Error']))
     st.write(f"Mean Absolute Error: ${mae:.2f}")
     st.write(f"Mean Absolute Percentage Error: {mape:.2f}%")
-    
 
 def predict_next_day(data, model, scaler):
     st.subheader('Next Day Prediction')
